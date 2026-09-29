@@ -1,0 +1,412 @@
+openapi: 3.0.3
+info:
+  title: Takarda Results & Verification API
+  version: "1.0.0"
+  license:
+    name: Proprietary — National Secondary Certificate Council
+  description: |
+    First-release HTTP API for schools, human verifiers, and the employers' association.
+    Candidate feature-phone traffic uses USSD/SMS (out of band of this spec).
+    Money is whole kobo. PINs grant five checks.
+    Employers' association authenticates with mutual TLS at the transport layer
+    (client certificate); that is enforced by the edge, not by a bearer token alone.
+servers:
+  - url: https://api.takarda.example/v1
+    description: Production v1 (major version in path; v1 supported at least 12 months after v2 ships)
+tags:
+  - name: pins
+    description: PIN purchase and status
+  - name: checks
+    description: Candidate result check (web path)
+  - name: verifications
+    description: Certificate verification (minimised)
+  - name: amendments
+    description: Grade amendment (append-only)
+  - name: schools
+    description: School bulk result download
+
+paths:
+  /pins:
+    post:
+      tags: [pins]
+      summary: Purchase a result-checker PIN
+      description: |
+        Idempotent on client_reference. Safe: no. Idempotent: yes (same client_reference
+        returns the same PIN without a second charge).
+      operationId: purchasePin
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PinPurchaseRequest'
+      responses:
+        '201':
+          description: PIN created (or existing PIN returned for same client_reference)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PinPurchaseResponse'
+        '202':
+          description: Purchase still in progress for this client_reference
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '400':
+          description: Missing or invalid client_reference or body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '402':
+          description: Payment partner declined the charge
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Missing or invalid bearer token
+        '429':
+          description: Rate limit exceeded
+        '503':
+          description: Payment partner unavailable; client may retry with same client_reference
+
+  /pins/{client_reference}:
+    get:
+      tags: [pins]
+      summary: Status of a PIN purchase by client reference
+      description: "Safe: yes. Idempotent: yes."
+      operationId: getPinStatus
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/client_reference_path'
+      responses:
+        '200':
+          description: Current PIN state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PinPurchaseResponse'
+        '404':
+          description: Unknown client_reference
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+
+  /checks:
+    post:
+      tags: [checks]
+      summary: Check results with a PIN (web / programmatic)
+      description: |
+        Not safe (decrements remaining). Not idempotent (each successful call consumes one check).
+        USSD/SMS use the same domain rules via the adapter; they are not HTTP.
+      operationId: checkResults
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CheckRequest'
+      responses:
+        '200':
+          description: Grades returned; remaining decremented
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheckSuccess'
+        '403':
+          description: PIN exhausted (remaining = 0) or PIN invalid or results not released
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '400':
+          description: Malformed body
+        '429':
+          description: Rate limit
+
+  /verifications:
+    post:
+      tags: [verifications]
+      summary: Verify a certificate (subject-scoped, minimised)
+      description: |
+        Safe: yes (read-only). Idempotent: yes.
+        Returns only requested subjects and validity. Never other subjects, address, phone, or centre.
+      operationId: createVerification
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerificationRequest'
+      responses:
+        '200':
+          description: Verification result (minimised)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerificationResponse'
+        '400':
+          description: Missing subject list or invalid parameters
+        '401':
+          description: Unauthorized
+        '404':
+          description: No released result for the given identity/scope
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerificationResponse'
+
+  /schools/{centre_number}/results:
+    get:
+      tags: [schools]
+      summary: Bulk result list for one centre (one sitting)
+      description: |
+        Safe: yes. Idempotent: yes.
+        centre_number is an identifier (path). sitting is a filter (query).
+        Served on a dedicated channel; does not share the individual-check surge path.
+      operationId: getSchoolResults
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: centre_number
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Centre identifier (resource identity)
+        - name: sitting
+          in: query
+          required: true
+          schema:
+            type: string
+            example: "2026-05"
+          description: Filter — which sitting's results to return
+      responses:
+        '200':
+          description: Complete centre file metadata + download link or inline payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SchoolBulkResponse'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Authenticated school not authorised for this centre_number
+        '404':
+          description: Results not yet released for this sitting
+        '429':
+          description: Bulk rate limit
+
+  /amendments:
+    post:
+      tags: [amendments]
+      summary: Record a grade amendment
+      description: |
+        Not safe. Not idempotent in the HTTP sense unless client supplies an idempotency key;
+        domain rule requires officer + evidence; append-only.
+      operationId: createAmendment
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AmendmentRequest'
+      responses:
+        '201':
+          description: Amendment recorded; current grade updated for future reads
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AmendmentResponse'
+        '400':
+          description: Missing evidence_reference or invalid body
+        '401':
+          description: Unauthorized
+        '404':
+          description: No released result to amend
+        '409':
+          description: Concurrent amendment conflict (server applied defined order)
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Token auth for schools, human verifiers, officers, PIN agents
+    AssociationClientCert:
+      type: apiKey
+      in: header
+      name: X-Client-Cert-Subject
+      description: |
+        Placeholder for association machine identity. In production, mutual TLS
+        (client certificate) is terminated at the edge; the edge forwards verified
+        identity. OpenAPI 3.0.3 has no native mutualTLS type (added in 3.1).
+
+  parameters:
+    client_reference_path:
+      name: client_reference
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 8
+        maxLength: 64
+      description: Client-generated idempotency key for the purchase
+
+  schemas:
+    PinPurchaseRequest:
+      type: object
+      required: [client_reference]
+      properties:
+        client_reference:
+          type: string
+          minLength: 8
+          maxLength: 64
+          description: Body parameter — idempotency key generated by client
+        amount_kobo:
+          type: integer
+          enum: [350000]
+          description: Optional; must be 350000 if present
+
+    PinPurchaseResponse:
+      type: object
+      required: [client_reference, pin, remaining_checks, status]
+      properties:
+        client_reference:
+          type: string
+        pin:
+          type: string
+        remaining_checks:
+          type: integer
+          minimum: 0
+          maximum: 5
+        status:
+          type: string
+          enum: [issued, in_progress, failed]
+
+    CheckRequest:
+      type: object
+      required: [pin]
+      properties:
+        pin:
+          type: string
+        examination_number:
+          type: string
+          description: Optional identity cross-check
+
+    CheckSuccess:
+      type: object
+      required: [remaining_checks, subjects]
+      properties:
+        remaining_checks:
+          type: integer
+        subjects:
+          type: array
+          items:
+            type: object
+            required: [code, grade]
+            properties:
+              code:
+                type: string
+              grade:
+                type: string
+
+    VerificationRequest:
+      type: object
+      required: [certificate_number, date_of_birth, subjects]
+      properties:
+        certificate_number:
+          type: string
+          description: Identifier of the certificate resource
+        date_of_birth:
+          type: string
+          format: date
+        subjects:
+          type: array
+          minItems: 1
+          items:
+            type: string
+          description: Body — explicit subject scope (minimisation)
+
+    VerificationResponse:
+      type: object
+      required: [valid, subjects]
+      properties:
+        valid:
+          type: boolean
+        subjects:
+          type: array
+          items:
+            type: object
+            properties:
+              code:
+                type: string
+              grade:
+                type: string
+
+    SchoolBulkResponse:
+      type: object
+      required: [centre_number, sitting, candidate_count, download_url]
+      properties:
+        centre_number:
+          type: string
+        sitting:
+          type: string
+        candidate_count:
+          type: integer
+        download_url:
+          type: string
+          format: uri
+
+    AmendmentRequest:
+      type: object
+      required: [examination_number, subject_code, new_grade, evidence_reference]
+      properties:
+        examination_number:
+          type: string
+        subject_code:
+          type: string
+        new_grade:
+          type: string
+        evidence_reference:
+          type: string
+          minLength: 1
+
+    AmendmentResponse:
+      type: object
+      required: [amendment_id, examination_number, subject_code, previous_grade, new_grade]
+      properties:
+        amendment_id:
+          type: string
+        examination_number:
+          type: string
+        subject_code:
+          type: string
+        previous_grade:
+          type: string
+        new_grade:
+          type: string
+
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          description: Stable machine-readable reason (e.g. PIN_EXHAUSTED, PAYMENT_DECLINED)
+        message:
+          type: string

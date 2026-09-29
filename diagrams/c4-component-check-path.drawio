@@ -1,0 +1,110 @@
+<mxfile host="app.diagrams.net" modified="2026-09-28T18:00:00.000Z" agent="Takarda" version="22.0.0">
+  <diagram id="c4-component" name="C4 Component - Results-day check path">
+    <mxGraphModel dx="1100" dy="700" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1100" pageHeight="700" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="title" value="Component diagram — Results-day check path (highest risk)" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontStyle=1;fontSize=15;" vertex="1" parent="1">
+          <mxGeometry x="200" y="15" width="550" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- Boundary -->
+        <mxCell id="boundary" value="Results-day check path" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#1F4E79;strokeWidth=2;dashed=1;verticalAlign=top;fontStyle=1;fontSize=12;spacingTop=4;" vertex="1" parent="1">
+          <mxGeometry x="180" y="60" width="620" height="380" as="geometry" />
+        </mxCell>
+
+        <!-- Components -->
+        <mxCell id="pin_gate" value="PIN gate&#xa;Validates PIN, remaining count,&#xa;atomic decrement" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;align=center;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="220" y="110" width="180" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cache" value="Cache lookup&#xa;Keyed by candidate + sitting;&#xa;serves pre-generated payload" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;align=center;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="460" y="110" width="200" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="fallback" value="Fallback read&#xa;On miss: read current grade&#xa;from primary; optionally&#xa;re-populate cache" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;align=center;" vertex="1" parent="1">
+          <mxGeometry x="460" y="230" width="200" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="invalidator" value="Invalidator&#xa;On amendment: drop or&#xa;version-bump affected keys" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;align=center;" vertex="1" parent="1">
+          <mxGeometry x="220" y="320" width="180" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="audit" value="Audit writer&#xa;Records PIN, channel,&#xa;timestamp, remaining after check" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;align=center;" vertex="1" parent="1">
+          <mxGeometry x="460" y="340" width="200" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- External -->
+        <mxCell id="amend_ext" value="Amendment service&#xa;(external to this path)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=11;align=center;" vertex="1" parent="1">
+          <mxGeometry x="40" y="320" width="120" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="db" value="Primary store" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=10;fillColor=#f5f5f5;strokeColor=#666666;fontSize=11;align=center;" vertex="1" parent="1">
+          <mxGeometry x="860" y="220" width="120" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- Edges -->
+        <mxCell id="r1" style="edgeStyle=orthogonalEdgeStyle;endArrow=block;endFill=1;fontSize=10;" edge="1" parent="1" source="pin_gate" target="cache">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="r1l" value="If remaining &gt; 0" style="edgeLabel;html=1;fontSize=10;" vertex="1" connectable="0" parent="r1">
+          <mxGeometry x="-0.1" relative="1" as="geometry"><mxPoint as="offset" /></mxGeometry>
+        </mxCell>
+
+        <mxCell id="r2" style="edgeStyle=orthogonalEdgeStyle;endArrow=block;endFill=1;fontSize=10;dashed=1;" edge="1" parent="1" source="cache" target="fallback">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="r2l" value="On miss" style="edgeLabel;html=1;fontSize=10;" vertex="1" connectable="0" parent="r2">
+          <mxGeometry x="-0.1" relative="1" as="geometry"><mxPoint as="offset" /></mxGeometry>
+        </mxCell>
+
+        <mxCell id="r3" style="edgeStyle=orthogonalEdgeStyle;endArrow=block;endFill=1;fontSize=10;" edge="1" parent="1" source="fallback" target="db">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="r3l" value="Read current" style="edgeLabel;html=1;fontSize=10;" vertex="1" connectable="0" parent="r3">
+          <mxGeometry x="-0.1" relative="1" as="geometry"><mxPoint as="offset" /></mxGeometry>
+        </mxCell>
+
+        <mxCell id="r4" style="edgeStyle=orthogonalEdgeStyle;endArrow=block;endFill=1;fontSize=10;" edge="1" parent="1" source="pin_gate" target="audit">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points"><mxPoint x="310" y="280" /><mxPoint x="560" y="280" /></Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="r4l" value="After success&#xa;or exhausted" style="edgeLabel;html=1;fontSize=9;" vertex="1" connectable="0" parent="r4">
+          <mxGeometry x="-0.2" relative="1" as="geometry"><mxPoint as="offset" /></mxGeometry>
+        </mxCell>
+
+        <mxCell id="r5" style="edgeStyle=orthogonalEdgeStyle;endArrow=block;endFill=1;fontSize=10;" edge="1" parent="1" source="amend_ext" target="invalidator">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="r5l" value="Amendment&#xa;accepted" style="edgeLabel;html=1;fontSize=9;" vertex="1" connectable="0" parent="r5">
+          <mxGeometry x="-0.1" relative="1" as="geometry"><mxPoint as="offset" /></mxGeometry>
+        </mxCell>
+
+        <mxCell id="r6" style="edgeStyle=orthogonalEdgeStyle;endArrow=block;endFill=1;fontSize=10;dashed=1;" edge="1" parent="1" source="invalidator" target="cache">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points"><mxPoint x="310" y="200" /><mxPoint x="560" y="200" /></Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="r6l" value="Invalidate keys" style="edgeLabel;html=1;fontSize=10;" vertex="1" connectable="0" parent="r6">
+          <mxGeometry x="-0.1" relative="1" as="geometry"><mxPoint as="offset" /></mxGeometry>
+        </mxCell>
+
+        <mxCell id="r7" style="edgeStyle=orthogonalEdgeStyle;endArrow=block;endFill=1;fontSize=10;" edge="1" parent="1" source="pin_gate" target="db">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points"><mxPoint x="310" y="250" /><mxPoint x="920" y="250" /></Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="r7l" value="Decrement remaining&#xa;(atomic)" style="edgeLabel;html=1;fontSize=9;" vertex="1" connectable="0" parent="r7">
+          <mxGeometry x="-0.3" relative="1" as="geometry"><mxPoint as="offset" /></mxGeometry>
+        </mxCell>
+
+        <!-- Note -->
+        <mxCell id="note" value="Why this path is highest risk:&#xa;• Wrong PIN gate → double-use or false exhaust&#xa;• Stale cache after amendment → wrong grade&#xa;• Fallback storm at noon → primary overload&#xa;&#xa;Deliberately left out: web UI, USSD wording, bulk channel" style="shape=note;whiteSpace=wrap;html=1;size=14;fillColor=#fff9e6;strokeColor=#d6b656;fontSize=10;align=left;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="40" y="460" width="280" height="120" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
