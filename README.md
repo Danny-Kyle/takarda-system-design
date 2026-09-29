@@ -14,7 +14,8 @@ takarda-design/
 │   ├── c4-container.drawio
 │   └── c4-component-check-path.drawio
 ├── dossier/
-│   └── takarda-decision-dossier.pdf
+│   └── software submission.pdf
+|   ├── Software Submission.docx
 └── ai/
     └── ai-log.md
 ```
